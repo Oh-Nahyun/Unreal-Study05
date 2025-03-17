@@ -39,7 +39,7 @@
 ///// ------------------------------
 
 ///// 매크로 함수 (인터페이스 객체의 안전한 반납을 위한 매크로 함수)
-#define SAFE_RELEASE(p) { if (p) { (p)->Release; (p)=NULL; } }
+#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p)=NULL; } }
 
 ///// 클래스 선언 (함수, 변수)
 class DemoApp
@@ -106,9 +106,9 @@ DemoApp::DemoApp() : m_hwnd(NULL), m_pDirect2dFactory(NULL), m_pRenderTarget(NUL
 DemoApp::~DemoApp()
 {
     DiscardDeviceResource();                        ///// 장치 의존적 자원을 반납하는 함수를 호출한다.
-    /////SAFE_RELEASE(m_pDirect2dFactory);          ///// 장치 독립적 자원인 D2D 팩토리를 반납한다.
-    m_pDirect2dFactory->Release();
-    m_pDirect2dFactory = NULL;
+    SAFE_RELEASE(m_pDirect2dFactory);               ///// 장치 독립적 자원인 D2D 팩토리를 반납한다.
+    /////m_pDirect2dFactory->Release();             ///// (((아래 두 코드는 SAFE_RELEASE(m_pDirect2dFactory); 와 같다.)))
+    /////m_pDirect2dFactory = NULL;
 }
 
 ///// 메시지 루프 함수를 구현
@@ -135,7 +135,7 @@ HRESULT DemoApp::Initialize(HINSTANCE hInstance)
     ///// 윈도우 클래스를 등록한다.
     if (SUCCEEDED(hr))
     {
-        WNDCLASSEXW wcex { sizeof(WNDCLASSEX) };
+        WNDCLASSEX wcex { sizeof(WNDCLASSEX) };
         /////wcex.cbSize = sizeof(WNDCLASSEX);
 
         wcex.style = CS_HREDRAW | CS_VREDRAW;
@@ -153,8 +153,8 @@ HRESULT DemoApp::Initialize(HINSTANCE hInstance)
         ///// ------------------------------
 
         ///// 윈도우를 생성한다.
-        m_hwnd = CreateWindowW(L"D2DDemoApp", L"Direct2D", WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT, CW_USEDEFAULT, 640, 480, nullptr, nullptr, hInstance, nullptr);
+        m_hwnd = CreateWindow(L"D2DDemoApp", L"Direct2D", WS_OVERLAPPEDWINDOW,
+            CW_USEDEFAULT, CW_USEDEFAULT, 640, 480, nullptr, nullptr, hInstance, this);
 
         hr = m_hwnd ? S_OK : E_FAIL;
 
@@ -168,7 +168,7 @@ HRESULT DemoApp::Initialize(HINSTANCE hInstance)
     return hr;
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
     ///// 클래스 초기화 함수 호출
     ///// COM 라이브러리 사용을 위한 함수 (필수)
@@ -254,15 +254,17 @@ HRESULT DemoApp::CreateDeviceResource()
 
 void DemoApp::DiscardDeviceResource()
 {
-    /////SAFE_RELEASE(m_pRenderTarget);
-    m_pRenderTarget->Release();
-    m_pRenderTarget = NULL;
+    SAFE_RELEASE(m_pRenderTarget);
+    /////m_pRenderTarget->Release();
+    /////m_pRenderTarget = NULL;
 
-    m_pLightSlateGrayBrush->Release();
-    m_pLightSlateGrayBrush = NULL;
+    SAFE_RELEASE(m_pLightSlateGrayBrush);
+    /////m_pLightSlateGrayBrush->Release();
+    /////m_pLightSlateGrayBrush = NULL;
 
-    m_pCornflowerBlueBrush->Release();
-    m_pCornflowerBlueBrush = NULL;
+    SAFE_RELEASE(m_pCornflowerBlueBrush);
+    /////m_pCornflowerBlueBrush->Release();
+    /////m_pCornflowerBlueBrush = NULL;
 }
 
 ///// ==============================
@@ -302,11 +304,15 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         {
             switch (message)
             {
-            ///// 
+            ///// 새 창의 크기를 가져온 다음, 창의 크기를 재조절하는 DemoApp 의 OnResize 함수를 호출한다.
             case WM_SIZE:
                 {
-                    
+                    UINT width = LOWORD(lParam);
+                    UINT height = HIWORD(lParam);
+                    pDemoApp->OnResize(width, height);
                 }
+                result = 0;
+                wasHandled = true;
                 break;
 
             ///// WM_PAINT 를 발생시키도록 InvalidateRect 함수를 호출한다.
@@ -332,8 +338,10 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 
             case WM_DESTROY:
                 {
-                    
+                    PostQuitMessage(0);
                 }
+                result = 0;
+                wasHandled = true;
                 break;
             }
         }
@@ -347,189 +355,62 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 
 HRESULT DemoApp::OnRender()
 {
-    return E_NOTIMPL;
+    HRESULT hr = S_OK;
+
+    hr = CreateDeviceResource();
+
+    ///// 렌더 타겟이 유효함으로 그리기 작업을 수행한다.
+    ///// 모든 그리기 함수는 BeginDraw() 와 EndDraw() 사이에 구현한다.
+    if (SUCCEEDED(hr))
+    {
+        ///// BeginDraw() ...
+        m_pRenderTarget->BeginDraw();
+
+        ///// 변환이 있을 경우, SetTransform 함수에 의해 구현
+        m_pRenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
+
+        ///// clear 로 흰색으로 배경을 클리어
+        m_pRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+
+        ///// 여기서부터 그리기 함수를 호출한다.
+        ///// 그리는 영역의 크기를 얻어온다. (getSize())
+        D2D1_SIZE_F rtSize = m_pRenderTarget->GetSize();
+
+        ///// 선 그리기 (격자 형태로 그리기)
+        int width = static_cast<int>(rtSize.width);
+        int height = static_cast<int>(rtSize.height);
+
+        ///// Test 선 그리기
+        /////m_pRenderTarget->DrawLine(
+        /////    D2D1::Point2F(50.0f, 50.0f),
+        /////    D2D1::Point2F(100.0f, 100.0f),
+        /////    m_pLightSlateGrayBrush,
+        /////    0.5f);
+
+        ///// EndDraw() ...
+        m_pRenderTarget->EndDraw();
+    }
+
+    ///// 예외 처리
+    ///// EndDraw() 는 정상인 경우, S_OK 를 리턴하고,
+    ///// 비정상인 경우에는 D2DERR_RECREATE_TARGET 이 리턴된다.
+    ///// 이 경우에는 렌더 타겟과 모든 자원을 다시 생성해야 한다.
+    if (hr == D2DERR_RECREATE_TARGET)
+    {
+        hr = S_OK;
+        DiscardDeviceResource();
+    }
+
+    return S_OK;
 }
 
+///// 창의 크기가 수정될 경우, 렌더 타겟도 이에 맞도록 크기가 변경된다.
 void DemoApp::OnResize(UINT width, UINT height)
 {
+    if (m_pRenderTarget)
+    {
+        m_pRenderTarget->Resize(D2D1::SizeU(width, height));
+    }
 }
 
 ///// ==============================
-
-#include "framework.h"
-#include "01_DemoApp.h"
-
-#define MAX_LOADSTRING 100
-
-// 전역 변수:
-HINSTANCE hInst;                                // 현재 인스턴스입니다.
-WCHAR szTitle[MAX_LOADSTRING];                  // 제목 표시줄 텍스트입니다.
-WCHAR szWindowClass[MAX_LOADSTRING];            // 기본 창 클래스 이름입니다.
-
-// 이 코드 모듈에 포함된 함수의 선언을 전달합니다:
-ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-                     _In_opt_ HINSTANCE hPrevInstance,
-                     _In_ LPWSTR    lpCmdLine,
-                     _In_ int       nCmdShow)
-{
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
-
-    // TODO: 여기에 코드를 입력합니다.
-
-    // 전역 문자열을 초기화합니다.
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_MY01DEMOAPP, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
-
-    // 애플리케이션 초기화를 수행합니다:
-    if (!InitInstance (hInstance, nCmdShow))
-    {
-        return FALSE;
-    }
-
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_MY01DEMOAPP));
-
-    MSG msg;
-
-    // 기본 메시지 루프입니다:
-    while (GetMessage(&msg, nullptr, 0, 0))
-    {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-    }
-
-    return (int) msg.wParam;
-}
-
-
-
-//
-//  함수: MyRegisterClass()
-//
-//  용도: 창 클래스를 등록합니다.
-//
-ATOM MyRegisterClass(HINSTANCE hInstance)
-{
-    WNDCLASSEXW wcex;
-
-    wcex.cbSize = sizeof(WNDCLASSEX);
-
-    wcex.style          = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc    = WndProc;
-    wcex.cbClsExtra     = 0;
-    wcex.cbWndExtra     = 0;
-    wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_MY01DEMOAPP));
-    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_MY01DEMOAPP);
-    wcex.lpszClassName  = szWindowClass;
-    wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
-
-    return RegisterClassExW(&wcex);
-}
-
-//
-//   함수: InitInstance(HINSTANCE, int)
-//
-//   용도: 인스턴스 핸들을 저장하고 주 창을 만듭니다.
-//
-//   주석:
-//
-//        이 함수를 통해 인스턴스 핸들을 전역 변수에 저장하고
-//        주 프로그램 창을 만든 다음 표시합니다.
-//
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
-{
-   hInst = hInstance; // 인스턴스 핸들을 전역 변수에 저장합니다.
-
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-
-   if (!hWnd)
-   {
-      return FALSE;
-   }
-
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
-
-   return TRUE;
-}
-
-//
-//  함수: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  용도: 주 창의 메시지를 처리합니다.
-//
-//  WM_COMMAND  - 애플리케이션 메뉴를 처리합니다.
-//  WM_PAINT    - 주 창을 그립니다.
-//  WM_DESTROY  - 종료 메시지를 게시하고 반환합니다.
-//
-//
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch (message)
-    {
-    case WM_COMMAND:
-        {
-            int wmId = LOWORD(wParam);
-            // 메뉴 선택을 구문 분석합니다:
-            switch (wmId)
-            {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
-            case IDM_EXIT:
-                DestroyWindow(hWnd);
-                break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
-            }
-        }
-        break;
-    case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
-            EndPaint(hWnd, &ps);
-        }
-        break;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
-    }
-    return 0;
-}
-
-// 정보 대화 상자의 메시지 처리기입니다.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message)
-    {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
-
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
-    }
-    return (INT_PTR)FALSE;
-}
