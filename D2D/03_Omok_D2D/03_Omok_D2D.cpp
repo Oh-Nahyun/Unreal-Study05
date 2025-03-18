@@ -6,6 +6,16 @@
 
 #define MAX_LOADSTRING 100
 
+///// Direct2D 를 사용하기 위한 헤더파일과 라이브러리 파일을 포함
+#include <d2d1.h>
+#pragma comment(lib, "D2D1.lib")
+
+#include <dwrite.h>
+#pragma comment(lib, "Dwrite.lib")
+
+///// D2D 에서 자주 사용할 네임스페이스
+using namespace D2D1;
+
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
@@ -43,6 +53,27 @@ unsigned char g_dol[Y_COUNT][X_COUNT];
 ///// 현재 어떤 돌을 놓을 차례인지를 결정하는 턴 (0 = 검은돌, 1 = 흰돌)
 unsigned char g_step;
 ///// ==============================
+///// Direct2D
+
+///// D2D 를 구성하는 각종 객체를 생성하는 객체
+ID2D1Factory* gp_Factory;
+
+///// D2D 에서 윈도우 클라이언트 영역에 그림을 그릴 객체
+ID2D1HwndRenderTarget* gp_RenderTarget;
+
+///// 글자 찍기
+IDWriteFactory* gp_DWriteFactory;
+
+///// Text 객체 생성
+IDWriteTextFormat* gp_TextFormat;
+///// ==============================
+///// Game
+
+
+///// .....
+
+
+///// ==============================
 ///// 배경색으로 사용할 브러쉬
 HBRUSH h_bk_brush;
 
@@ -62,6 +93,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // TODO: 여기에 코드를 입력합니다.
+
+    ///// (COM) 컴포넌트를 사용할 수 있도록 프로그램을 초기화 한다.
+    CoInitializeEx(NULL, COINITBASE_MULTITHREADED);
+
+    ///// D2D 를 위한 Factory 객체를 생성한다.
+    if (S_OK != D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &gp_Factory))
+    {
+        return 0;
+    }
 
     // 전역 문자열을 초기화합니다.
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -87,6 +127,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             DispatchMessage(&msg);
         }
     }
+
+    ///// 사용하던 Factory 객체를 해제한다.
+    gp_Factory->Release();
+
+    ///// (COM) 사용을 해제한다.
+    CoUninitialize();
 
     return (int)msg.wParam;
 }
