@@ -19,13 +19,71 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     if (message == WM_PAINT)
     {
+        ValidateRect(hWnd, NULL);       ///// WM_PAINT 메시지가 발생하는 것을 막는데 사용한다.
+
         ///// 그리기 시작 ...
         gp_RenderTarget->BeginDraw();   ///// 기본적으로 검은색
+
+        ///// ------------------------------
 
         ///// clear 함수를 사용하여 윈도우 전체 색을 변경한다. (하늘색)
         gp_RenderTarget->Clear(ColorF(0.0f, 0.8f, 1.0f));
 
+        ///// ------------------------------
+
+        ///// 브러쉬
+        ID2D1SolidColorBrush* pYellowBrush = NULL;
+        gp_RenderTarget->CreateSolidColorBrush(ColorF(1.0f, 1.0f, 0.0f), &pYellowBrush);
+
+        ///// 사각형 그리기
+        D2D1_SIZE_F rcSize = gp_RenderTarget->GetSize();
+
+        D2D1_RECT_F rectangle1 = RectF(
+            rcSize.width / 2 - 50.0f, rcSize.height / 2 - 50.0f,
+            rcSize.width / 2 + 50.0f, rcSize.height / 2 + 50.0f);
+
+        gp_RenderTarget->FillRectangle(rectangle1, pYellowBrush);
+
+        D2D1_RECT_F rectangle2 = RectF(
+            rcSize.width / 2 - 100.0f, rcSize.height / 2 - 100.0f,
+            rcSize.width / 2 + 100.0f, rcSize.height / 2 + 100.0f);
+
+        gp_RenderTarget->DrawRectangle(rectangle2, pYellowBrush);
+
+        ///// ------------------------------
+
+        ///// 브러쉬
+        ID2D1SolidColorBrush* pRedBrush = NULL;
+        gp_RenderTarget->CreateSolidColorBrush(ColorF(1.0f, 0.0f, 0.0f), &pRedBrush);
+
+        ///// 원 그리기
+        D2D1_ELLIPSE myEllipse;
+        myEllipse.point.x = rcSize.width / 2;
+        myEllipse.point.y = rcSize.height / 2 - 200;
+        myEllipse.radiusX = 80.0f;      ///// 타원 X (수평) 방향 반지름
+        myEllipse.radiusY = 70.0f;      ///// 타원 Y (수직) 방향 반지름
+
+        gp_RenderTarget->FillEllipse(myEllipse, pRedBrush);
+
+        myEllipse.point.x = rcSize.width / 2;
+        myEllipse.point.y = rcSize.height / 2 - 200;
+        myEllipse.radiusX = 90.0f;      ///// 타원 X (수평) 방향 반지름
+        myEllipse.radiusY = 80.0f;      ///// 타원 Y (수직) 방향 반지름
+
+        gp_RenderTarget->DrawEllipse(myEllipse, pRedBrush);
+
+        ///// ------------------------------
+
+        ///// 브러쉬 제거
+        pYellowBrush->Release();
+        pYellowBrush = NULL;
+        pRedBrush->Release();
+        pRedBrush = NULL;
+
+        ///// ------------------------------
+
         ///// 그리기 종료 ...
+        ///// Direct2D 의 렌더 타겟을 이용한 그림 그리기를 종료한다.)
         gp_RenderTarget->EndDraw();
 
         return 0;
