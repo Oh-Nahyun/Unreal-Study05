@@ -377,15 +377,53 @@ HRESULT DemoApp::OnRender()
         D2D1_SIZE_F rtSize = m_pRenderTarget->GetSize();
 
         ///// 선 그리기 (격자 형태로 그리기)
-        int width = static_cast<int>(rtSize.width);
+        ///// int width = rtSize.width;                 ///// 묵시적 형변환
+        ///// int width = (int)rtSize.width;            ///// 명시적 형변환
+        int width = static_cast<int>(rtSize.width);     ///// static_cast 형변환
         int height = static_cast<int>(rtSize.height);
 
-        ///// Test 선 그리기
+        ///// 선 그리기 (Test 함수)
         /////m_pRenderTarget->DrawLine(
         /////    D2D1::Point2F(50.0f, 50.0f),
         /////    D2D1::Point2F(100.0f, 100.0f),
         /////    m_pLightSlateGrayBrush,
-        /////    0.5f);
+        /////    1.0f); ///// 투명도
+
+        ///// 선 그리기 (격자 형태로 그리기 - 세로)
+        for (int x = 0; x < width; x += 10)
+        {
+            m_pRenderTarget->DrawLine(
+                D2D1::Point2F(static_cast<float>(x), 0.0f),
+                D2D1::Point2F(static_cast<float>(x), rtSize.height),
+                m_pLightSlateGrayBrush,
+                0.5f);  ///// 반투명
+        }
+
+        ///// 선 그리기 (격자 형태로 그리기 - 가로)
+        for (int y = 0; y < height; y += 10)
+        {
+            m_pRenderTarget->DrawLine(
+                D2D1::Point2F(0.0f, static_cast<float>(y)),
+                D2D1::Point2F(rtSize.width, static_cast<float>(y)),
+                m_pLightSlateGrayBrush,
+                0.5f);  ///// 반투명
+        }
+
+        ///// #01. 사각형 그리기
+        D2D1_RECT_F rectangle1 = D2D1::RectF(
+            rtSize.width / 2 - 50.0f, rtSize.height / 2 - 50.0f,
+            rtSize.width / 2 + 50.0f, rtSize.height / 2 + 50.0f);
+
+        ///// 채워진 사각형 그리기
+        m_pRenderTarget->FillRectangle(&rectangle1, m_pCornflowerBlueBrush);
+
+        ///// #02. 사각형 그리기
+        D2D1_RECT_F rectangle2 = D2D1::RectF(
+            rtSize.width / 2 - 100.0f, rtSize.height / 2 - 100.0f,
+            rtSize.width / 2 + 100.0f, rtSize.height / 2 + 100.0f);
+
+        ///// 안채워진 사각형 그리기
+        m_pRenderTarget->DrawRectangle(&rectangle2, m_pCornflowerBlueBrush);
 
         ///// EndDraw() ...
         m_pRenderTarget->EndDraw();
