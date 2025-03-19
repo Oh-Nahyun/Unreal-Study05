@@ -219,6 +219,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+    case WM_CREATE:         /////
+    {
+        RECT rc;
+
+        // 클라이언트 영역의 좌표를 얻는다.
+        GetClientRect(hWnd, &rc);
+
+        // 그림을 그리기 위한 RenderTarget을 생성한다.
+        gp_Factory->CreateHwndRenderTarget(
+            RenderTargetProperties(),
+            HwndRenderTargetProperties(hWnd, SizeU(rc.right, rc.bottom)),
+            &gp_RenderTarget);
+    }
+    break;
+    ///// ------------------------------
     case WM_COMMAND:
     {
         int wmId = LOWORD(wParam);
@@ -250,6 +265,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     break;
     case WM_PAINT:
     {
+        /*
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hWnd, &ps);
         // TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
@@ -310,9 +326,119 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         ///// ==============================
 
         EndPaint(hWnd, &ps);
+        */
+
+        ///// WM_PAINT 메시지가 다시 발생하지 않게 만든다.
+        ValidateRect(hWnd, NULL);
+
+        ///// D2D 렌더 타겟을 사용하여 그림을 그리기 시작한다.
+        gp_RenderTarget->BeginDraw();
+
+        ///// 기본은 검은색!!
+        ///// clear 함수를 사용. 윈도우 전체 영역을 채운다.
+        gp_RenderTarget->Clear(ColorF(0.86f, 0.69f, 0.36f));
+
+        ///// 브러쉬
+        ID2D1SolidColorBrush* p_line_Brush;
+        ID2D1SolidColorBrush* p_black_Brush;
+        ID2D1SolidColorBrush* p_white_Brush;
+
+        ///// 사용할 브러쉬 객체를 선언한다.
+        gp_RenderTarget->CreateSolidColorBrush(ColorF(0.095f, 0.069f, 0.0301f), &p_line_Brush);
+        gp_RenderTarget->CreateSolidColorBrush(ColorF(0.0f, 0.0f, 0.0f), &p_black_Brush);
+        gp_RenderTarget->CreateSolidColorBrush(ColorF(1.0f, 1.0f, 1.0f), &p_white_Brush);
+
+        ///// 선의 시작과 끝
+        D2D1_POINT_2F start_pos;
+        D2D1_POINT_2F end_pos;
+
+        ///// [ 바둑판 선그리는 부분 ]
+
+        ///// 수직으로 19개의 선을 그린다.
+        for (int x = 0; x < X_COUNT; x++)
+        {
+            start_pos.x = XPOS(x);
+            start_pos.y = YPOS(0);
+            end_pos.x = XPOS(x);
+            end_pos.y = YPOS(Y_COUNT - 1);
+
+            gp_RenderTarget->DrawLine(start_pos, end_pos, p_line_Brush, 1.0f);
+        }
+
+        ///// 수평으로 19개의 선을 그린다.
+        for (int y = 0; y < Y_COUNT; y++)
+        {
+            start_pos.x = XPOS(0);
+            start_pos.y = YPOS(y);
+            end_pos.x = XPOS(X_COUNT - 1);
+            end_pos.y = YPOS(y);
+
+            gp_RenderTarget->DrawLine(start_pos, end_pos, p_line_Brush, 1.0f);
+        }
+
+        ///// [ 바둑판 위 바둑돌 그리는 부분 ]
+
+        ///// ------------------------------
+        ///// TEST DATA
+        ///// g_dol[0][0] = 1;
+        ///// g_dol[1][1] = 2;
+        ///// g_dol[2][2] = 0;
+        ///// g_dol[3][3] = 2;
+        ///// g_dol[4][4] = 1;
+        ///// ------------------------------
+
+        ///// 바둑돌 원 구조체
+        D2D1_ELLIPSE dol_region;
+
+        ///// 반지름 (수평 & 수직)
+        dol_region.radiusX = (float)HALF_INTERVAL;
+        dol_region.radiusY = (float)HALF_INTERVAL;
+
+        ///// 바둑판 전체에 놓여져 있는 돌을 종류에 따라 그린다.
+        for (int y = 0; y < Y_COUNT; y++)
+        {
+            for (int x = 0; x < X_COUNT; x++)
+            {
+                ///// 바둑돌이 놓여져 있는 경우 (바둑판 데이터 : 0 = 빈곳, 1 = 검은돌, 2 = 흰돌) -> 브러쉬 색 변경
+                if (g_dol[y][x] > 0)
+                {
+                    ///// 위치값 변경하기!! (x, y)
+                    dol_region.point.x = XPOS(x);
+                    dol_region.point.y = YPOS(y);
+
+                    ///// 바둑돌 색 변경하기
+                    if (g_dol[y][x] == 1)   ///// 흑돌
+                    {
+                        gp_RenderTarget->FillEllipse(dol_region, p_black_Brush);
+                    }
+                    else                    ///// 백돌
+                    {
+                        gp_RenderTarget->FillEllipse(dol_region, p_white_Brush);
+                    }
+                }
+            }
+        }
+
+        ///// 삭제 부분
+        p_line_Brush->Release();
+        p_line_Brush = NULL;
+
+        p_black_Brush->Release();
+        p_black_Brush = NULL;
+
+        p_white_Brush->Release();
+        p_white_Brush = NULL;
+
+        ///// D2D 렌더 타겟을 사용하여 그림을 그리기를 종료한다.
+        gp_RenderTarget->EndDraw();
     }
     break;
     case WM_DESTROY:
+        if (gp_RenderTarget != NULL)
+        {
+            gp_RenderTarget->Release();
+            gp_RenderTarget = NULL;
+        }
         PostQuitMessage(0);
         break;
     default:
