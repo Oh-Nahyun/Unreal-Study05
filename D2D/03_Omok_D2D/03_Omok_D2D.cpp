@@ -95,7 +95,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // TODO: 여기에 코드를 입력합니다.
 
     ///// (COM) 컴포넌트를 사용할 수 있도록 프로그램을 초기화 한다.
-    CoInitializeEx(NULL, COINITBASE_MULTITHREADED);
+    ///// CoInitializeEx(NULL, COINITBASE_MULTITHREADED);
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
     ///// D2D 를 위한 Factory 객체를 생성한다.
     if (S_OK != D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &gp_Factory))
