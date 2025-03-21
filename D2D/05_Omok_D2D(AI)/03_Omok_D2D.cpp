@@ -77,7 +77,7 @@ IDWriteTextFormat* gp_TextFormat;
 
 ///// 바둑돌을 처리하는 부분
 int DrawDol(HWND hWnd, int xpos, int ypos);     ///// 유저의 바둑돌 처리
-int DrawDolAI(HWND hWnd);                       ///// AI의 바둑돌 처리 (방어형)
+void DrawDolAI(HWND hWnd);                       ///// AI의 바둑돌 처리 (방어형)
 
 ///// 유저의 착점 위치
 int g_YposUser;
@@ -607,14 +607,119 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     return (INT_PTR)FALSE;
 }
 
+///// 유저의 돌을 처리하는 함수
 int DrawDol(HWND hWnd, int xpos, int ypos)
 {
-    return 0;
+    ///// 3x3 반칙 플래그
+    bool bUserError = false;
+
+    ///// 1. 유저가 3x3을 못놓는 상황 확인
+
+    ///// 2. 바둑돌이 없는 곳에만 놓을 수 있다.
+
+    ///// ------------------------------
+    ///// 3x3 반칙 확인
+    
+    ///// 3x3 반칙 확인 (12시, 1시)
+    if (g_dol[ypos - 3][xpos + 0] == 0 &&   ///// 세 칸 위에는 비어있고, 
+        g_dol[ypos - 2][xpos + 0] == 1 &&   ///// 두 칸 위에는 혹돌, 
+        g_dol[ypos - 1][xpos + 0] == 1 &&   ///// 한칸 위에는 흑돌, 
+        g_dol[ypos - 1][xpos + 1] == 1 &&   ///// 우대각선 위 흑돌 + - , 
+        g_dol[ypos - 2][xpos + 2] == 1 &&   ///// 우대각선 위위 흑돌 +2 -2, 
+        g_dol[ypos - 3][xpos + 3] == 0)     ///// 우대각선 위위위는 비어있다. +3 -3
+    {
+        bUserError = true;
+        MessageBox(hWnd, L"3x3 반칙(12시 1시)", L"착수 금지!", MB_OK);
+        return false;
+    }
+    ///// 3x3 반칙 확인 (12시, 3시)
+    ///// 3x3 반칙 확인 (12시, 5시)
+    ///// 3x3 반칙 확인 (12시, 7시)
+    ///// 3x3 반칙 확인 (12시, 9시)
+    ///// 3x3 반칙 확인 (12시, 11시)
+
+    ///// 3x3 반칙 확인 (1시, 3시)
+    ///// 3x3 반칙 확인 (1시, 5시)
+    ///// 3x3 반칙 확인 (1시, 6시)
+    ///// 3x3 반칙 확인 (1시, 9시)
+    ///// 3x3 반칙 확인 (1시, 11시)
+    
+    ///// 3x3 반칙 확인 (3시, 5시)
+    ///// 3x3 반칙 확인 (3시, 6시)
+    ///// 3x3 반칙 확인 (3시, 7시)
+    ///// 3x3 반칙 확인 (3시, 11시)
+    
+    ///// 3x3 반칙 확인 (5시, 6시)
+    ///// 3x3 반칙 확인 (5시, 7시)
+    ///// 3x3 반칙 확인 (5시, 9시)
+    
+    ///// 3x3 반칙 확인 (6시, 7시)
+    ///// 3x3 반칙 확인 (6시, 9시)
+    ///// 3x3 반칙 확인 (6시, 11시)
+
+    ///// 3x3 반칙 확인 (7시, 9시)
+    ///// 3x3 반칙 확인 (7시, 11시)
+    
+    ///// 3x3 반칙 확인 (9시, 11시)
+
+    ///// ------------------------------
+    ///// 3x3 반칙이 아닌 경우에만 입력 가능
+    if (!bUserError)
+    {
+        ///// 좌표에 입력
+        g_dol[ypos][xpos] = g_step + 1;
+
+        ///// 가중치 처리 입력
+        SetNumDol(ypos, xpos, g_step);
+
+        ///// 턴 전환
+        g_step = !g_step;
+    }
+
+    return true;
 }
 
-int DrawDolAI(HWND hWnd)
+///// 가중치를 우선 처리하는 단순 AI 함수 (방어형)
+void DrawDolAI(HWND hWnd)
 {
-    return 0;
+    ///// 최종 착수할 바둑돌의 정보
+    int nTemp = 0;
+    int _tempX = 0, _tempY = 0;
+
+    ///// 방어 위주의 검색
+    ///// 전체 게임판의 가중치 검색
+    ///// 제일 높은 가중치 값을 찾아내서 착수 (같은 수가 존재 -> 랜덤, 처음, 나중값(사용))
+    for (int y = 0; y < Y_COUNT; y++)
+    {
+        for (int x = 0; x < X_COUNT; x++)
+        {
+            ///// 흑돌에 관한 것만 처리중...
+            if (nTemp >= g_nDol[y][x])
+            {
+                nTemp = g_nDol[y][x];
+                _tempX = x;
+                _tempY = y;
+            }
+        }
+    }
+
+    ///// .............................. (생략)
+    ///// 공격적인 AI 처리 부분...
+    ///// 가중치의 최고값, 최저값을 우위를 판단해서
+    ///// 최고값이 월등히 큰 경우, 공격을 우선시 한다.
+    ///// ..............................
+
+    ///// 바둑돌을 착점
+    g_dol[_tempY][_tempX] = g_step + 1;
+
+    ///// 가중치 계산
+    SetNumDol(_tempY, _tempX, g_step);
+
+    ///// 승패 계산
+    CheckPointer(hWnd, _tempX, _tempY, g_step);
+
+    ///// 턴 전환
+    g_step = !g_step;
 }
 
 void OnLButtonDown(HWND hWnd, int _x, int _y)   /////
