@@ -74,7 +74,22 @@ float g_degree = 0.0f;                          ///// 그림의 회전값을 기
 ///// ------------------------------
 
 ///// 함수 정의
+HRESULT CreateDeviceResource();
+void DiscardDeviceResource();
+HRESULT OnRender();
+void HandleKeyboardInput();
 
+///// 스프라이트
+D2D1_RECT_F GetBitmapPosition();    ///// 전용 좌표 (참고)
+void Move(FLOAT x, FLOAT y);        ///// CurrentPosition 변경 함수
+
+///// 지정된 파일 이름으로 Direct2D 비트맵을 만든다.
+HRESULT LoadBitmapFromFile(ID2D1RenderTarget* pRendertarget, IWICImagingFactory* pIWICFactory, PCWSTR uri,
+                        UINT destinationWidth, UINT destinationHeight, ID2D1Bitmap** ppBitmap);
+
+///// D2D Draw 함수 (Test용)
+void DrawCircle(float x, float y, float radius, float r, float g, float b, float a);
+void DrawEtc(float x, float y, float radius, float r, float g, float b, float a);
 
 ///// ==============================
 
@@ -126,6 +141,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
     WNDCLASSEXW wcex;
+
+    ///// 스프라이트 출력(이동)을 최적화 하기 위한 고급 타이머 사용... ★ ★ ★ ★ ★
+    QueryPerformanceFrequency(&myFrequence);    ///// 현재 성능 카운터, 타이머의 주파수를 반환한다.
+    QueryPerformanceCounter(&myPrevTime);       ///// 시간 간격 측정에 사용할 수 있는 고해상도 타임 스태프인 성능 카운터의 현재 값을 검색한다.
+                                                ///// 따라서, 현재 CPU의 틱을 받아오는 것이다.
 
     wcex.cbSize = sizeof(WNDCLASSEX);
 
@@ -186,6 +206,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+    case WM_CREATE:
+        {
+            ///// 타이머 생성
+            SetTimer(hWnd, 1, 50, NULL);
+        }
+        break;
+    case WM_TIMER:
+        {
+            switch (wParam)
+            {
+            case 1:
+                ///// 회전값 증가
+
+                ///// 스프라이트 프레임
+
+                break;
+            }
+        }
+        break;
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
@@ -208,10 +247,39 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
             // TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
+
+            g_hwnd = hWnd;
+
+            HRESULT hr;
+
+            ///// D2D 팩토리 초기화
+            if (m_pD2DFactory == NULL)
+            {
+                ///// WIC 팩토리를 생성한다. 이미지 파일을 읽거나, 저장하려면 WIC를 사용한다. WIC는 영상 압축, 해제 또는 변환하는 컴포넌트.
+                ///// WIC 객체로 이미지 파일을 읽어서 Direct2D용 이미지로 변환하여 사용한다.
+                ///// 이후에 LoadBitmapFromFile 을 통해서 m_pWICFactory 를 사용하여 이미지 파일을 읽어온다.
+                hr = CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&m_pWICFactory));
+
+                ///// D2D 팩토리를 생성한다.
+                if (SUCCEEDED(hr))
+                {
+                    hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &m_pD2DFactory);
+                }
+            }
+
+            ///// D2D 렌더
+            if (m_pD2DFactory != NULL)
+            {
+                OnRender();
+            }
+
             EndPaint(hWnd, &ps);
         }
         break;
     case WM_DESTROY:
+        ///// 타이머 제거
+        KillTimer(hWnd, 1);
+
         PostQuitMessage(0);
         break;
     default:
@@ -240,3 +308,127 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     return (INT_PTR)FALSE;
 }
 
+HRESULT CreateDeviceResource()
+{
+    HRESULT hr = S_OK;
+
+    if (!m_pRenderTarget)
+    {
+        RECT rc;
+        GetClientRect(g_hwnd, &rc);
+
+        D2D1_SIZE_U size = D2D1::SizeU(rc.right - rc.left, rc.bottom - rc.top);
+
+        ///// 렌더 타겟을 설정한다.
+        hr = m_pD2DFactory->CreateHwndRenderTarget(D2D1::RenderTargetProperties(),
+            D2D1::HwndRenderTargetProperties(g_hwnd, size),
+            &m_pRenderTarget);
+
+        ///// 외부 파일로부터 비트맵 객체를 생성한다. (m_pAnotherBitmap) -> 배경 생성
+
+
+        ///// 외부 파일로부터 비트맵 객체를 생성한다. (m_pSpriteBitmap) -> 스프라이트 생성
+        
+    }
+
+    return hr;
+}
+
+void DiscardDeviceResource()
+{
+    SAFE_RELEASE(m_pRenderTarget);
+}
+
+HRESULT OnRender()
+{
+    HRESULT hr = CreateDeviceResource();
+
+    if (SUCCEEDED(hr))
+    {
+        ///// 렌더 타겟의 크기를 얻어온다.
+        D2D1_SIZE_F renderTargetSize = m_pRenderTarget->GetSize();
+
+        m_pRenderTarget->BeginDraw();
+
+        ///// ------------------------------
+
+        m_pRenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
+        m_pRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::YellowGreen));
+
+        ///// ------------------------------
+
+        hr = m_pRenderTarget->EndDraw();
+
+        if (hr == D2DERR_RECREATE_TARGET)
+        {
+            hr = S_OK;
+            DiscardDeviceResource();
+        }
+    }
+
+    return hr;
+}
+
+void HandleKeyboardInput()
+{
+}
+
+D2D1_RECT_F GetBitmapPosition()
+{
+    return D2D1_RECT_F();
+}
+
+void Move(FLOAT x, FLOAT y)
+{
+}
+
+HRESULT LoadBitmapFromFile(ID2D1RenderTarget* pRendertarget, IWICImagingFactory* pIWICFactory, PCWSTR uri, UINT destinationWidth, UINT destinationHeight, ID2D1Bitmap** ppBitmap)
+{
+    IWICBitmapDecoder* pDecoder = NULL;         ///// IWICBitmapDecoder 객체 생성
+    IWICBitmapFrameDecode* pSource = NULL;      ///// 특정 그림을 위한 객체
+    IWICFormatConverter* pConverter = NULL;     ///// 이미지 변환 객체
+    IWICBitmapScaler* pScaler = NULL;           ///// 이미지 크기를 조정할 때 사용
+
+    ///// WIC용 Factory 객체를 사용하여 이미지 압축 해제를 위한 객체를 생성한다.
+    HRESULT hr = m_pWICFactory->CreateDecoderFromFilename(uri, NULL, GENERIC_READ, WICDecodeMetadataCacheOnLoad, &pDecoder);
+
+    if (SUCCEEDED(hr))
+    {
+        ///// 초기 프레임을 생성한다.
+        hr = pDecoder->GetFrame(0, &pSource);
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        ///// IWICBitmap 형식의 비트맵을 ID2D1Bitmap 형식으로 변환하기 위한 객체를 생성한다.
+        ///// 이미지 형식 32bppPBGRA 로 변환한다. (DXGI_FORMAT_B8G8R8A8_UNORM + D2D1_ALPHA_MODE_PREMULTIPLIED)
+        hr = pIWICFactory->CreateFormatConverter(&pConverter);
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        ///// 새로운 너비나 높이가 지정된 경우, IWICBitmapScaler 를 생성하고, 이를 사용해서 이미지 크기를 조정한다.
+    }
+    else    ///// 이미지 크기를 수정하지 않으면...
+    {
+
+    }
+    
+    ///// IWICBitmap 형식의 비트맵에서 Direct2d(ID2D1Bitmap) 객체를 (비트맵)을 생성한다.
+    if (SUCCEEDED(hr))
+    {
+
+    }
+
+    ///// 리소스 해제...
+
+    return hr;
+}
+
+void DrawCircle(float x, float y, float radius, float r, float g, float b, float a)
+{
+}
+
+void DrawEtc(float x, float y, float radius, float r, float g, float b, float a)
+{
+}
