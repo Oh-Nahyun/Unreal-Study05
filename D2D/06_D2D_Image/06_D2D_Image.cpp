@@ -325,7 +325,10 @@ HRESULT CreateDeviceResource()
             &m_pRenderTarget);
 
         ///// 외부 파일로부터 비트맵 객체를 생성한다. (m_pAnotherBitmap) -> 배경 생성
-
+        if (SUCCEEDED(hr))
+        {
+            hr = LoadBitmapFromFile(m_pRenderTarget, m_pWICFactory, L"Norway.jpg", 1366, 768, &m_pAnotherBitmap);
+        }
 
         ///// 외부 파일로부터 비트맵 객체를 생성한다. (m_pSpriteBitmap) -> 스프라이트 생성
         
@@ -350,12 +353,57 @@ HRESULT OnRender()
 
         m_pRenderTarget->BeginDraw();
 
-        ///// ------------------------------
+        ///// ==============================
 
         m_pRenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
         m_pRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::YellowGreen));
 
+        ///// 이미지 출력을 위한 사이즈 (m_pAnotherBitmap)
+        D2D1_SIZE_F size = m_pAnotherBitmap->GetSize();
+
         ///// ------------------------------
+
+        ///// 정상 이미지 출력
+        ///// 이미지를 정상적으로 읽어서 객체가 저장되었다는 것을 확인한다.
+        ///// DrawBitmap 함수를 사용하여 화면에 저장된 이미지를 출력한다.
+        if (m_pAnotherBitmap != NULL)
+        {
+            ///// (원본 사이즈) 이미지 출력
+            m_pRenderTarget->DrawBitmap(m_pAnotherBitmap,
+                D2D1::RectF(0.0f, 0.0f, size.width, size.height));
+
+            ///// (화면에 꽉차게) 이미지 출력
+
+            ///// (반투명) 이미지 출력
+        }
+
+        ///// 배경 이미지 출력
+
+        ///// 회전 이미지
+
+        ///// ------------------------------
+
+        ///// 무작위 서클 출력
+        /*
+        DrawCircle(300, 100, 50, 1.0f, 0.0f, 0.0f, 1.0f);       ///// (Test1...)
+        for (int i = 0; i < 1000; i++)                          ///// (Test2...)
+        {
+            DrawCircle(rand() % 1920, rand() % 1080, rand() % 100,
+                (rand() % 100) / 100.0f,
+                (rand() % 100) / 100.0f,
+                (rand() % 100) / 100.0f,
+                (rand() % 100) / 100.0f);
+        }
+        DrawEtc(200, 0, 50, 1.0f, 0.0f, 0.0f, 1.0f);            ///// (Test3...)
+        */
+
+        ///// ------------------------------
+
+        ///// 스프라이트 출력
+
+        ///// 스프라이트 애니메이션 출력
+
+        ///// ==============================
 
         hr = m_pRenderTarget->EndDraw();
 
@@ -408,27 +456,96 @@ HRESULT LoadBitmapFromFile(ID2D1RenderTarget* pRendertarget, IWICImagingFactory*
     if (SUCCEEDED(hr))
     {
         ///// 새로운 너비나 높이가 지정된 경우, IWICBitmapScaler 를 생성하고, 이를 사용해서 이미지 크기를 조정한다.
-    }
-    else    ///// 이미지 크기를 수정하지 않으면...
-    {
+        if (destinationWidth != 0 || destinationHeight != 0)
+        {
+            UINT OriginalWidth, OriginalHeight;
+            hr = pSource->GetSize(&OriginalWidth, &OriginalHeight);
 
+            if (SUCCEEDED(hr))
+            {
+                if (destinationWidth == 0)
+                {
+                    FLOAT scalar = static_cast<FLOAT>(destinationHeight) / static_cast<FLOAT>(OriginalHeight);
+                    destinationWidth = static_cast<UINT>(scalar) * static_cast<FLOAT>(OriginalWidth);
+                }
+                if (destinationHeight == 0)
+                {
+                    FLOAT scalar = static_cast<FLOAT>(destinationWidth) / static_cast<FLOAT>(OriginalWidth);
+                    destinationHeight = static_cast<UINT>(scalar) * static_cast<FLOAT>(OriginalHeight);
+                }
+
+                hr = pIWICFactory->CreateBitmapScaler(&pScaler);
+
+                if (SUCCEEDED(hr))
+                {
+                    hr = pScaler->Initialize(pSource, destinationWidth, destinationHeight, WICBitmapInterpolationModeCubic);
+                }
+
+                if (SUCCEEDED(hr))
+                {
+                    hr = pConverter->Initialize(pScaler, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, NULL, 0.0f, WICBitmapPaletteTypeMedianCut);
+                }
+            }
+        }
+        else    ///// 이미지 크기를 수정하지 않으면...
+        {
+            hr = pConverter->Initialize(pSource, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, NULL, 0.0f, WICBitmapPaletteTypeMedianCut);
+        }
     }
     
     ///// IWICBitmap 형식의 비트맵에서 Direct2d(ID2D1Bitmap) 객체를 (비트맵)을 생성한다.
     if (SUCCEEDED(hr))
     {
-
+        hr = pRendertarget->CreateBitmapFromWicBitmap(pConverter, NULL, ppBitmap);
     }
 
     ///// 리소스 해제...
+    SAFE_RELEASE(pDecoder);
+    SAFE_RELEASE(pSource);
+    SAFE_RELEASE(pConverter);
+    SAFE_RELEASE(pScaler);
 
     return hr;
 }
 
+///// 원을 출력하는 함수
 void DrawCircle(float x, float y, float radius, float r, float g, float b, float a)
 {
+    ///// 브러쉬 생성
+    ID2D1SolidColorBrush* brush;
+    m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(r, g, b, a), &brush);
+
+    ///// 색 변경 가능... (코드 제일 위에 미리 선언 후 가능)
+    ///// m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0, 0, 0, 0), &brush);
+    ///// brush->SetColor(D2D1::ColorF(r, g, b, a));
+    
+    ///// 원 그리기
+    m_pRenderTarget->DrawEllipse(D2D1::Ellipse(D2D1::Point2F(x, y), 
+        radius,         ///// Horizontal 
+        radius),        ///// Vertical
+        brush, 3.0f);
+
+    ///// 브러쉬 삭제
+    brush->Release();
 }
 
+///// 각종 테스트용 함수
 void DrawEtc(float x, float y, float radius, float r, float g, float b, float a)
 {
+    ///// 브러쉬 생성
+    ID2D1SolidColorBrush* brush;
+    m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(r, g, b, a), &brush);
+
+    ///// (그리기)
+    m_pRenderTarget->FillRectangle(D2D1::RectF(100 + x, 25 + y, 230 + x, 160 + y), brush);
+
+    m_pRenderTarget->DrawLine(D2D1::Point2F(x, y), D2D1::Point2F(x + 200, y + 200), brush);
+
+    m_pRenderTarget->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(100 + x, 425 + y, 230 + x, 560 + y), 
+        36.0f,          ///// Horizontal 
+        26.0f),         ///// Vertical
+        brush);
+
+    ///// 브러쉬 삭제
+    brush->Release();
 }
