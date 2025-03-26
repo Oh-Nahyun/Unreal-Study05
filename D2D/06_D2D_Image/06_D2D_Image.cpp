@@ -7,9 +7,24 @@
 #define MAX_LOADSTRING 100
 
 ///// ==============================
+
 ///// 윈도우 프로그램에서 콘솔 창을 추가로 생성하는 코드
+#ifdef _DEBUG
+#pragma comment(linker, "/entry:wWinMainCRTStartup /subsystem:console")
+#endif // _DEBUG
+
+///// ------------------------------
 
 ///// trace 매크로를 debug 환경에서만 유효하도록 바꾸는 코드
+#if defined(_DEBUG) && defined(WIN32) && !definded(_AFX) && !definded(_AFXDLL)
+///// 출력창에 로그 출력하기... Trace 매크로
+#define TRACE TRACE_WIN32
+#else
+#define TRACE
+#endif
+
+///// 예시 : TRACE("%d, %d", w, h);
+///// #define TRACE(_x, argv...) printf("[%s:%d]\t"_x"\n", __FILE__, __LINE__, ##args)
 
 ///// ==============================
 
@@ -218,8 +233,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             {
             case 1:
                 ///// 회전값 증가
+                g_degree = g_degree + 0.5f;
+
+                ///// 360도가 넘어가면 0으로 변경
+                if (g_degree >= 360.0f)
+                {
+                    g_degree = 0.0f;
+                }
+
+                ///// Test...
+                TRACE(L"회전각도 : %f\n", g_degree);                ///// [디버그를 통해 출력(디버그창)]에서 확인 가능
+                std::cout << "Degree : " << g_degree << std::endl;  ///// [콘솔창 출력]에서 확인 가능
 
                 ///// 스프라이트 프레임
+
+                ///// 화면 Update
+                InvalidateRect(hWnd, NULL, FALSE);
 
                 break;
             }
@@ -308,6 +337,54 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     return (INT_PTR)FALSE;
 }
 
+///// 스프라이트 그리기 함수
+///// (프레임 출력 + 이동 + 좌우 반전)
+void DrawSprite(int index)
+{
+    ///// 이동 타이머...
+
+    ///// 이동 함수...
+
+    ///// ------------------------------
+
+    ///// 스프라이트 출력
+
+    ///// 하나짜리 스프라이트 사용 시...
+    spriteWidth = m_pSpriteBitmap->GetSize().width;
+    spriteHeight = m_pSpriteBitmap->GetSize().height;
+    
+    ///// 프레임이 있는 스프라이트 사용 시...
+
+    ///// ------------------------------
+
+    ///// 스프라이트 좌우 반전 (Flip)
+
+    ///// 영역 처리 (Rect) src
+    D2D1_RECT_F src = D2D1::RectF(
+        (float)((index % spriteAccross) * spriteWidth),
+        (float)((index / spriteAccross) * spriteHeight),
+        (float)((index % spriteAccross) * spriteWidth) + spriteWidth,
+        (float)((index / spriteAccross) * spriteHeight) + spriteHeight
+    );
+
+    ///// 영역 처리 (Rect) dest
+    D2D1_RECT_F dest = D2D1::RectF(
+        currentPosition.width,
+        currentPosition.height,
+        currentPosition.width + spriteWidth,
+        currentPosition.height + spriteHeight
+    );
+
+    ///// 스프라이트 출력
+    m_pRenderTarget->DrawBitmap(
+        m_pSpriteBitmap,
+        dest,
+        1.0f,       ///// 투명도
+        D2D1_BITMAP_INTERPOLATION_MODE::D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, ///// 보간 방법
+        src
+    );
+}
+
 HRESULT CreateDeviceResource()
 {
     HRESULT hr = S_OK;
@@ -327,11 +404,15 @@ HRESULT CreateDeviceResource()
         ///// 외부 파일로부터 비트맵 객체를 생성한다. (m_pAnotherBitmap) -> 배경 생성
         if (SUCCEEDED(hr))
         {
-            hr = LoadBitmapFromFile(m_pRenderTarget, m_pWICFactory, L"Norway.jpg", 1366, 768, &m_pAnotherBitmap);
+            ///// hr = LoadBitmapFromFile(m_pRenderTarget, m_pWICFactory, L"Norway.jpg", 1366, 768, &m_pAnotherBitmap);
+            hr = LoadBitmapFromFile(m_pRenderTarget, m_pWICFactory, L"Norway.jpg", 1366 / 2, 768 / 2, &m_pAnotherBitmap);
         }
 
         ///// 외부 파일로부터 비트맵 객체를 생성한다. (m_pSpriteBitmap) -> 스프라이트 생성
-        
+        if (SUCCEEDED(hr))
+        {
+            hr = LoadBitmapFromFile(m_pRenderTarget, m_pWICFactory, L"ken_sprites3.png", 256, 128, &m_pSpriteBitmap);
+        }
     }
 
     return hr;
@@ -340,6 +421,8 @@ HRESULT CreateDeviceResource()
 void DiscardDeviceResource()
 {
     SAFE_RELEASE(m_pRenderTarget);
+    SAFE_RELEASE(m_pAnotherBitmap);
+    SAFE_RELEASE(m_pSpriteBitmap);
 }
 
 HRESULT OnRender()
@@ -368,18 +451,55 @@ HRESULT OnRender()
         ///// DrawBitmap 함수를 사용하여 화면에 저장된 이미지를 출력한다.
         if (m_pAnotherBitmap != NULL)
         {
+            ///// (화면에 꽉차게) 이미지 출력
+            /*m_pRenderTarget->DrawBitmap(m_pAnotherBitmap,
+                D2D1::RectF(0.0f, 0.0f, renderTargetSize.width, renderTargetSize.height));*/
+
             ///// (원본 사이즈) 이미지 출력
             m_pRenderTarget->DrawBitmap(m_pAnotherBitmap,
                 D2D1::RectF(0.0f, 0.0f, size.width, size.height));
 
-            ///// (화면에 꽉차게) 이미지 출력
-
             ///// (반투명) 이미지 출력
+            m_pRenderTarget->DrawBitmap(m_pAnotherBitmap,
+                D2D1::RectF(0.0f, 0.0f, renderTargetSize.width, renderTargetSize.height),               ///// dest
+                0.25f,                                                                                  ///// Opacity
+                D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR,
+                D2D1::RectF(0.0f, 0.0f, size.width, size.height)                                        ///// Source (아래보단 이 코드가 좋은 코드이다.)
+                //D2D1::RectF(m_pAnotherBitmap->GetSize().width / 2, m_pAnotherBitmap->GetSize().height / 2, 
+                //            m_pAnotherBitmap->GetSize().width, m_pAnotherBitmap->GetSize().height)    ///// Source
+                );
         }
+
+        ///// ------------------------------
 
         ///// 배경 이미지 출력
 
+        ///// ------------------------------
+
         ///// 회전 이미지
+
+        ///// 이미지 회전에 필요한 그림의 중심점 (회전)
+        //g_Center_Pos.y = renderTargetSize.height / 2;
+        //g_Center_Pos.x = renderTargetSize.width / 2;
+
+        g_Center_Pos.x = size.width / 2;
+        g_Center_Pos.y = size.height / 2;
+
+        ///// g_degree = 45.0f;   ///// 임시 (Test)
+
+        ///// 회전 이미지 출력
+        if (m_pAnotherBitmap != NULL)
+        {
+            ///// 회전 설정 (각도 설정)
+            m_pRenderTarget->SetTransform(D2D1::Matrix3x2F::Rotation(g_degree, g_Center_Pos));
+
+            ///// 이미지 출력
+            m_pRenderTarget->DrawBitmap(m_pAnotherBitmap,
+                D2D1::RectF(0.0f, 0.0f, size.width, size.height));
+
+            ///// 회전 복구
+            m_pRenderTarget->SetTransform(D2D1::Matrix3x2F::Rotation(0.0f, g_Center_Pos));
+        }
 
         ///// ------------------------------
 
@@ -394,12 +514,17 @@ HRESULT OnRender()
                 (rand() % 100) / 100.0f,
                 (rand() % 100) / 100.0f);
         }
-        DrawEtc(200, 0, 50, 1.0f, 0.0f, 0.0f, 1.0f);            ///// (Test3...)
         */
+        DrawEtc(200, 0, 50, 1.0f, 0.0f, 0.0f, 1.0f);            ///// (Test3...)
 
         ///// ------------------------------
 
-        ///// 스프라이트 출력
+        ///// 스프라이트 출력 (Test)
+        if (m_pSpriteBitmap != NULL)
+        {
+            m_pRenderTarget->DrawBitmap(m_pSpriteBitmap,
+                D2D1::RectF(0.0f, 0.0f, m_pSpriteBitmap->GetSize().width, m_pSpriteBitmap->GetSize().height));
+        }
 
         ///// 스프라이트 애니메이션 출력
 
